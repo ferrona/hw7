@@ -20,13 +20,13 @@
 //   BOTH the lecturer/course combination and the course as a whole.
 
 // === Domain model - fill in the blanks ===
-// There are 4 models: courses, lecturers, sections, reviews
-// There is one many-to-many relationship: courses <-> lecturers, which translates to two one-to-many relationships:
-// - One-to-many: courses -> sections
+// There are 4 models: course, lecturers, sections, reviews
+// There is one many-to-many relationship: course <-> lecturers, which translates to two one-to-many relationships:
+// - One-to-many: course -> sections
 // - One-to-many: lecturers -> sections
 // And one more one-to-many: sections -> reviews
 // Therefore:
-// - The first model, courses, contains the following fields: courseNumber, name
+// - The first model, course, contains the following fields: courseNumber, name
 // - The second model, lecturers, contains the following fields: name
 // - The third model, sections, contains the following fields: courseId, lecturerId
 // - The fourth model, reviews, contains the following fields, sectionId, body, rating
@@ -34,7 +34,7 @@
 // allows us to use firebase
 let firebase = require(`./firebase`)
 
-// /.netlify/functions/courses?courseNumber=KIEI-451
+// /.netlify/functions/course?courseNumber=KIEI-451
 exports.handler = async function(event) {
 
   // get the course number being requested
@@ -44,7 +44,7 @@ exports.handler = async function(event) {
   let db = firebase.firestore()
 
   // ask Firebase for the course that corresponds to the course number, wait for the response
-  let courseQuery = await db.collection('courses').where(`courseNumber`, `==`, courseNumber).get()
+  let courseQuery = await db.collection('courses').where(`courseNum`, `==`, courseNumber).get()
 
   // get the first document from the query
   let course = courseQuery.docs[0]
@@ -57,8 +57,8 @@ exports.handler = async function(event) {
 
   // create an object with the course data to hold the return value from our lambda
   let returnValue = {
-    courseNumber: courseData.courseNumber,
-    name: courseData.name
+    courseNumber: courseData.courseNum,
+    name: courseData.courseName,
   }
 
   // set a new Array as part of the return value
@@ -82,18 +82,38 @@ exports.handler = async function(event) {
     let sectionObject = {}
 
     // ask Firebase for the lecturer with the ID provided by the section; hint: read "Retrieve One Document (when you know the Document ID)" in the reference
-    let lecturerQuery = await db.collection('lecturers').doc(sectionData.lecturerId).get()
+    let lecturerQuery = await db.collection('lecturers').doc(sectionData.lectID).get()
 
     // get the data from the returned document
     let lecturer = lecturerQuery.data()
 
     // add the lecturer's name to the section Object
-    sectionObject.lecturerName = lecturer.name
+    sectionObject.lecturerName = lecturer.lectName
 
     // add the section Object to the return value
     returnValue.sections.push(sectionObject)
 
     // 🔥 your code for the reviews/ratings goes here
+
+    // get the document ID of the reviews
+    let reviewId = reviews[i].id
+
+    // get the data from the review
+    let reviewData = reviews[i].data()
+
+    // create an Object to be added to the return value if our lambda
+    let reviewObject = {}
+
+    // ask Firebase for the review with the ID provided by the section
+    let reviewQuery = await db.collection(`reviews`).doc(sectionId).get()
+
+    // add the reviews to the review object
+    reviewObject.comment = reviewData.comments
+    reviewObject.rating = reviewData.rating
+
+    // add the review object to the return value
+    returnValue.reviews.push(reviewObject)
+
   }
 
   // return the standard response

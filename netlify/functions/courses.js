@@ -34,7 +34,7 @@
 // allows us to use firebase
 let firebase = require(`./firebase`)
 
-// /.netlify/functions/course?courseNumber=KIEI-451
+// /.netlify/functions/courses?courseNumber=KIEI-451
 exports.handler = async function(event) {
 
   // get the course number being requested
@@ -65,10 +65,16 @@ exports.handler = async function(event) {
   returnValue.sections = []
 
   // ask Firebase for the sections corresponding to the Document ID of the course, wait for the response
-  let sectionsQuery = await db.collection('sections').where(`courseId`, `==`, courseId).get()
+  let sectionsQuery = await db.collection('sections').where(`courseID`, `==`, courseId).get()
 
   // get the documents from the query
   let sections = sectionsQuery.docs
+
+  // set a new object as a part of the return value that sum the number of ratings in each course
+  returnValue.courseTotalReviews = 0
+
+  // create an object that sums the total rating of each course
+  let ratingTotal = 0
 
   // loop through the documents
   for (let i=0; i < sections.length; i++) {
@@ -79,7 +85,9 @@ exports.handler = async function(event) {
     let sectionData = sections[i].data()
     
     // create an Object to be added to the return value of our lambda
-    let sectionObject = {}
+    let sectionObject = {
+      review: []
+    }
 
     // ask Firebase for the lecturer with the ID provided by the section; hint: read "Retrieve One Document (when you know the Document ID)" in the reference
     let lecturerQuery = await db.collection('lecturers').doc(sectionData.lectID).get()
@@ -90,30 +98,58 @@ exports.handler = async function(event) {
     // add the lecturer's name to the section Object
     sectionObject.lecturerName = lecturer.lectName
 
-    // add the section Object to the return value
-    returnValue.sections.push(sectionObject)
-
     // 🔥 your code for the reviews/ratings goes here
 
+    // ask Firebase for the review with the ID provided by the section
+    let reviewQuery = await db.collection('reviews').where(`sectionID`, `==`, sectionId).get()
+
+    // get the documents from the query
+    let review = reviewQuery.docs
+
+    // create a new variable that sum the rating
+    let sumRating = 0
+
+    // add total number of reviews to course total
+    returnValue.courseTotalReviews += review.length
+
+    // loop through the documents
+    for (let j=0; j < review.length; j++) {
+
     // get the document ID of the reviews
-    let reviewId = reviews[i].id
+    let reviewId = review[j].id
 
     // get the data from the review
-    let reviewData = reviews[i].data()
+    let reviewData = review[j].data()
 
-    // create an Object to be added to the return value if our lambda
+    // create an Object to be added to the return value of our lambda
     let reviewObject = {}
+    
+    // add the number of rating per section
+    sectionObject.ratingNumberPerSection = review.length
 
-    // ask Firebase for the review with the ID provided by the section
-    let reviewQuery = await db.collection(`reviews`).doc(sectionId).get()
+    // sum all the ratings within each section
+    sumRating = sumRating + reviewData.rating
+
+    // return the average rating that equals to the sum of all ratings to the number of rating per section
+    sectionObject.averageRating = sumRating/review.length
 
     // add the reviews to the review object
-    reviewObject.comment = reviewData.comments
+    reviewObject.comment = reviewData.comment
     reviewObject.rating = reviewData.rating
 
     // add the review object to the return value
-    returnValue.reviews.push(reviewObject)
+    sectionObject.review.push(reviewObject)
 
+    // add the ratings of all sections
+    ratingTotal += reviewObject.rating
+
+    // return the average rating that equals to the the total rating divided by the total number of reviews
+    returnValue.averageRating = ratingTotal/returnValue.courseTotalReviews
+
+    }
+    
+    // add the section Object to the return value
+    returnValue.sections.push(sectionObject)
   }
 
   // return the standard response
